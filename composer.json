@@ -1,0 +1,9 @@
+{
+    "name": "kairos/connect",
+    "description": "Sistema de Automação Kairós Ventures",
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    }
+}

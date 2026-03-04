@@ -37,23 +37,38 @@ class ConfigController {
     }
 
     /**
-     * Salva ou atualiza uma configuração com blindagem
+     * Salva ou atualiza uma configuração com blindagem e preenchimento de TODOS os campos
+     * @param string $chave Chave da configuração
+     * @param string $valor Conteúdo
+     * @param string $descricao Texto explicativo para o banco
+     * @param string $categoria Categoria (Analise de Mercado, Configuração, Sistema)
+     * @param string $grupo Grupo de agrupamento (Ex: WHATSAPP_API)
+     * @param int $ativo Status de ativação (0 ou 1)
      */
-    public function set($chave, $valor, $grupo = 'Sistema') {
-        // Se for sensível, encripta antes de salvar
-        if ($grupo === 'WHATSAPP_API') {
+public function set($chave, $valor, $descricao = '', $categoria = 'Sistema', $grupo = 'Sistema', $ativo = 1) {
+        if ($grupo === 'WHATSAPP_API' || $chave === 'openai_api_key') {
             $valor = SecurityHelper::encrypt($valor);
         }
 
-        $sql = "INSERT INTO kairos_configuracoes (chave, valor, config_group) 
-                VALUES (:chave, :valor, :grupo) 
-                ON DUPLICATE KEY UPDATE valor = :valor, config_group = :grupo";
+        // Mudança sutil: trocamos ":valor" por "VALUES(valor)" no UPDATE
+        $sql = "INSERT INTO kairos_configuracoes (chave, valor, descricao, categoria, config_group, is_active) 
+                VALUES (:chave, :valor, :descricao, :categoria, :grupo, :ativo) 
+                ON DUPLICATE KEY UPDATE 
+                    valor = VALUES(valor), 
+                    descricao = VALUES(descricao), 
+                    categoria = VALUES(categoria), 
+                    config_group = VALUES(config_group), 
+                    is_active = VALUES(is_active)";
         
         $stmt = $this->db->prepare($sql);
+        
         return $stmt->execute([
-            ':chave' => $chave,
-            ':valor' => $valor,
-            ':grupo' => $grupo
+            ':chave'     => $chave,
+            ':valor'     => $valor,
+            ':descricao' => $descricao,
+            ':categoria' => $categoria,
+            ':grupo'     => $grupo,
+            ':ativo'     => $ativo
         ]);
     }
 }

@@ -6,7 +6,7 @@
 
 // 1. IMPORTAÇÃO DAS DEPENDÊNCIAS
 // Como este arquivo está dentro da pasta /tests, precisamos subir um nível para achar o Helper
-require_once __DIR__ . '/../src/Helpers/SecurityHelper.php';
+ require_once __DIR__ . '/../src/Helpers/SecurityHelper.php';
 
 use App\Helpers\SecurityHelper;
 
