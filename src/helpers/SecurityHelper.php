@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Helpers;
+namespace src\Helpers;
 
 /**
  * Classe SecurityHelper - Criptografia de Elite (AES-256-CBC)
@@ -33,15 +33,26 @@ class SecurityHelper {
      * @param string $value Texto em Base64
      * @return string|bool Texto original ou false em caso de falha
      */
+
+    
     public static function decrypt($value) {
         $key = self::getKey();
-        $data = base64_decode($value);
+        $data = base64_decode($value, true);
+        if ($data === false) {
+            // Se a decodificação falhar, retornamos false
+            return false;
+        }
         $iv_length = openssl_cipher_iv_length(self::$method);
         
+        if (strlen($data) <= $iv_length) {
+            // Se o dado for menor que o IV, é um formato inválido
+            return false;
+        }
         $iv = substr($data, 0, $iv_length);
         $encrypted = substr($data, $iv_length);
-        
-        return openssl_decrypt($encrypted, self::$method, $key, 0, $iv);
+        $decrypted = openssl_decrypt($encrypted, self::$method, $key, 0, $iv);
+
+        return $decrypted !== false ? $decrypted : $value;
     }
 
     /**

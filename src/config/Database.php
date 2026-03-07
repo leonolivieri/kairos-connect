@@ -1,6 +1,6 @@
 <?php
-
-namespace App\Config;
+// ARQUIVO: src/Config/Database.php
+namespace src\Config;
 
 use PDO;
 use PDOException;

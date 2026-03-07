@@ -1,39 +1,49 @@
 <?php
 /**
  * ARQUIVO: public/webhook.php
- * PADRÃO: Engenharia Kairós - Isolamento de Ativos
+ * OBJETIVO: Endpoint de recepção para a API do WhatsApp (Meta)
  */
 
-// O arquivo está em public_html/connect/
-// 1º pulo (../) vai para public_html/
-// 2º pulo (../../) vai para a RAIZ da conta, onde está a pasta kairos-connect/
+require_once __DIR__ . '/../../kairos-connect/bootstrap.php';
 
-require_once __DIR__ . '/../../kairos-connect/src/Config/Database.php';
-require_once __DIR__ . '/../../kairos-connect/src/Controllers/ConfigController.php';
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
-use App\Controllers\ConfigController;
+use src\Controllers\ConfigController;
 
 $config = new ConfigController();
 
-// Lógica de Verificação (GET)
+echo "=== INICIALIZANDO WEBHOOK DE PAGAMENTO ===<br>";
+// 1. LÓGICA DE VERIFICAÇÃO (MÉTODO GET)
+// Exigido pela Meta para validar o Webhook no painel Developers
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $verifyToken = $config->get('meta_verify_token');
+    $verifyToken = $config->get('meta_verify_token'); // Recupera o token que salvamos (KAIROS_LAB_2026)
     
-    if (($_GET['hub_mode'] ?? '') === 'subscribe' && ($_GET['hub_verify_token'] ?? '') === $verifyToken) {
-        echo $_GET['hub_challenge'];
+    $mode      = $_GET['hub_mode'] ?? '';
+    $token     = $_GET['hub_verify_token'] ?? '';
+    $challenge = $_GET['hub_challenge'] ?? '';
+
+    if ($mode === 'subscribe' && $token === $verifyToken) {
+        echo $challenge;
         http_response_code(200);
         exit;
+    } else {
+        http_response_code(403);
+        exit;
     }
-    http_response_code(403);
-    exit;
 }
 
-// Lógica de Recepção (POST)
+// 2. LÓGICA DE RECEPÇÃO DE MENSAGENS (MÉTODO POST)
+// Onde as mensagens reais chegarão
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = file_get_contents('php://input');
-    // Log de segurança para análise (fica dentro da public para debug inicial)
+    $data = json_decode($input, true);
+
+    // LOG TEMPORÁRIO PARA MINERAÇÃO DE ATIVOS (Passo 2.2 da Tarefa)
+    // Isso criará um arquivo .log para analisarmos o JSON da Meta
     file_put_contents(__DIR__ . '/webhook_debug.log', "[" . date('Y-m-d H:i:s') . "] PAYLOAD: " . $input . PHP_EOL, FILE_APPEND);
 
+    // Por enquanto, respondemos apenas 200 OK para a Meta não reenviar a mesma mensagem
     http_response_code(200);
     exit;
 }

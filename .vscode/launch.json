@@ -8,7 +8,7 @@
             "type": "chrome",
             "request": "launch",
             "name": "Launch Chrome against localhost",
-            "url": "http://localhost:8081/kairos-connect/index.php",
+            "url": "http://localhost:8081/connect/index.php",
             "webRoot": "${workspaceFolder}"
         }
     ]

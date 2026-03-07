@@ -1,14 +1,19 @@
 <?php
 
-namespace App\Controllers;
 
-use App\Config\Database;
-use App\Helpers\SecurityHelper;
+
+namespace src\Controllers;
+
+use src\Config\Database;
+use src\Helpers\SecurityHelper;
 use PDO;
 
 /**
  * Classe ConfigController - Gestão de Parâmetros do Sistema
  */
+
+
+
 class ConfigController {
     private $db;
 
