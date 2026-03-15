@@ -58,10 +58,11 @@ class SecurityHelper {
     /**
      * Obtém a chave mestra do ambiente
      */
-    private static function getKey() {
-        // Tenta pegar do ambiente, se não houver, usa um fallback de emergência
-        $key = getenv('MASTER_KEY') ?: 'K4ir05_V3ntur3s_Fallback_Key_2026';
-        // A chave AES-256 precisa ter exatamente 32 caracteres
-        return substr(hash('sha256', $key), 0, 32);
-    }
+private static function getKey() {
+    // Buscamos diretamente no cofre $_ENV que o bootstrap já populou.
+    // Sem mexer em uma linha do bootstrap.php.
+    $key = $_ENV['Ambiente_Desenvolvimento']['MASTER_KEY'] ?? 'Fallback_Seguro_Kairos';
+    
+    return substr(hash('sha256', $key), 0, 32);
+}
 }

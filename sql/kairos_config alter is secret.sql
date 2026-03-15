@@ -1,0 +1,1 @@
+ALTER TABLE kairos_configuracoes ADD COLUMN is_secret TINYINT(1) DEFAULT 0;

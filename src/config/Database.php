@@ -1,60 +1,65 @@
 <?php
-// ARQUIVO: src/Config/Database.php
+
 namespace src\Config;
 
 use PDO;
 use PDOException;
 
+/**
+ * ATIVO INTELECTUAL: Protocolo Kairós de Conexão Segura
+ * CONCEITO: Singleton Híbrido com Detecção Automática de Ambiente.
+ * NORMA: Uma única conexão por ciclo de execução (Eficiência de Memória).
+ */
 class Database {
     private static $instance = null;
     private $conn;
 
     /**
-     * Construtor privado: Aqui injetamos a inteligência híbrida Kairós
+     * Construtor Privado: Impede instâncias externas (Regra Singleton).
      */
     private function __construct() {
-        // 1. Carrega o .env (Independente de onde o script é chamado)
-        $envPath = __DIR__ . '/../../.env';
-        if (!file_exists($envPath)) {
-            die("Erro Crítico: Arquivo .env não encontrado em $envPath");
-        }
-        $env = parse_ini_file($envPath, true);
+        // 1. Detecção de Ambiente (Local vs Produção)
+        $isLocal = $this->isLocalEnvironment();
 
-        // 2. Detecção de Ambiente Híbrida
-        $isLocal = (isset($_SERVER['HTTP_HOST']) && ($_SERVER['HTTP_HOST'] == 'localhost' || $_SERVER['HTTP_HOST'] == 'localhost:8080')) || (php_sapi_name() === 'cli');
-
+        // 2. Extração de Credenciais baseada no carregamento do bootstrap.php
+        // Priorizamos a estrutura do seu .env [Ambiente_Local] e [Ambiente_Producao]
         if ($isLocal) {
-            $host = $env['Ambiente_Local']['DB_HOST_LOCAL'] ?? 'localhost';
-            // Ajustado para as chaves do seu .env atual
-            $user = $env['Ambiente_Local']['DB_USER_LOCAL'] ?? 'root';
-            $pass = $env['Ambiente_Local']['DB_PASS_LOCAL'] ?? '';
-            $db   = $env['Ambiente_Local']['DB_NAME_LOCAL'] ?? 'kairos';
+            $host = $_ENV['Ambiente_Local']['DB_HOST_LOCAL'] ?? 'localhost';
+            $user = $_ENV['Ambiente_Local']['DB_USER_LOCAL'] ?? 'root';
+            $pass = $_ENV['Ambiente_Local']['DB_PASS_LOCAL'] ?? '';
+            $db   = $_ENV['Ambiente_Local']['DB_NAME_LOCAL'] ?? 'kairos';
         } else {
-            // Ajustado para as chaves da produção no seu .env
-            $host = $env['Ambiente_Producao']['DB_HOST_PROD'] ?? 'localhost';
-            $user = $env['Ambiente_Producao']['DB_USER_PROD'] ?? '';
-            $pass = $env['Ambiente_Producao']['DB_PASS_PROD'] ?? '';
-            $db   = $env['Ambiente_Producao']['DB_NAME_PROD'] ?? '';        }
+            $host = $_ENV['Ambiente_Producao']['DB_HOST_PROD'] ?? 'localhost';
+            $user = $_ENV['Ambiente_Producao']['DB_USER_PROD'] ?? '';
+            $pass = $_ENV['Ambiente_Producao']['DB_PASS_PROD'] ?? '';
+            $db   = $_ENV['Ambiente_Producao']['DB_NAME_PROD'] ?? '';
+        }
+
+        // Validação de Integridade
+        if (empty($db)) {
+            die($isLocal ? "Erro: Banco de dados não definido no .env" : "Erro de Sistema: 500");
+        }
 
         $dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
         
-        // 3. Opções de Segurança Profissional (O que eu tinha descartado)
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
+            PDO::ATTR_EMULATE_PREPARES   => false, // Segurança contra SQL Injection
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
         ];
 
         try {
             $this->conn = new PDO($dsn, $user, $pass, $options);
         } catch (PDOException $e) {
-            // Em local mostramos tudo, em produção escondemos o erro técnico
-            die($isLocal ? "Erro de Conexão: " . $e->getMessage() : "Erro de Sistema: Contacte o suporte.");
+            // Em produção, nunca revelamos detalhes do servidor (Segurança Kairós)
+            error_log("Erro de Conexão Kairós: " . $e->getMessage());
+            die($isLocal ? "Falha na Conexão: " . $e->getMessage() : "Erro de Sistema: Contacte o suporte.");
         }
     }
 
     /**
-     * Ponto de entrada único (Singleton)
+     * Ponto de Entrada Único
      */
     public static function getInstance() {
         if (self::$instance === null) {
@@ -63,15 +68,17 @@ class Database {
         return self::$instance->conn;
     }
 
+/**
+ * Lógica de Detecção de Ambiente (Versão Calibrada Kairós)
+ */
+private function isLocalEnvironment() {
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    return (stripos($host, 'localhost') !== false || stripos($host, '127.0.0.1') !== false) 
+           || (php_sapi_name() === 'cli');
+}
     // Travas de Segurança Inegociáveis
-
-    /**
-     * Impede a clonagem da instância
-     */
     private function __clone() {}
-
-    /**
-     * Impede a desserialização da instância
-     */
-    public function __wakeup() {}
+    public function __wakeup() {
+        throw new \Exception("Não é permitido desserializar um Singleton.");
+    }
 }
