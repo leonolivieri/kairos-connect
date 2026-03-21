@@ -1,7 +1,7 @@
 <?php
 namespace src\Controllers;
 
-use src\Models\Mensagem;
+use src\Models\MessageRepository;
 use src\Config\Database;
 use PDO;
 

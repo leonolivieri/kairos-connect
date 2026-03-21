@@ -12,8 +12,8 @@
         use src\Helpers\SecurityHelper;
         use PDO;
 
-        /**
-        * Classe ConfigController - Gestão de Parâmetros do Sistema
+        /*
+         Classe ConfigController - Gestão de Parâmetros do Sistema
         */
 
         class ConfigController {
@@ -22,9 +22,9 @@
             public function __construct() {$this->db = Database::getInstance();}
 
             /*
-            * Obtém uma configuração decifrada (se necessário)
-            * @param string $chave Chave da configuração
-            * @return string Valor processado
+             Obtém uma configuração decifrada (se necessário)
+             @param string $chave Chave da configuração
+             @return string Valor processado
             */
 
             public function get($chave) {

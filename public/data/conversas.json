@@ -1,0 +1,22 @@
+{
+    "_metadata": {
+        "projeto": "Kairós Connect",
+        "versao": "1.0.1",
+        "nota": "Estrutura corrigida para a chave 'dados'."
+    },
+    "dados": [
+        {
+            "id": "5519000000000",
+            "nome": "Mariana Souza",
+            "telefone": "+55 19 88888-8888",
+            "ultima_mensagem": "Obrigada pelo retorno!",
+            "status": "Humano",
+            "mensagens": [
+                {"tipo": "cliente", "texto": "Vocês atendem aos domingos?", "hora": "09:00"},
+                {"tipo": "ia", "texto": "Infelizmente não, nosso horário é de segunda a sexta.", "hora": "09:01"},
+                {"tipo": "humano", "texto": "Bom dia, Mariana! Leon aqui. Caso precise de algo urgente, podemos agendar.", "hora": "10:15"},
+                {"tipo": "cliente", "texto": "Obrigada pelo retorno!", "hora": "10:20"}
+            ]
+        }
+    ]
+}
