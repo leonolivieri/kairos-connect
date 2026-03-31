@@ -79,4 +79,4 @@
             // Travas de Segurança Inegociáveis
                 private function __clone() {}
                 public function __wakeup() {throw new \Exception("Não é permitido desserializar um Singleton.");}
-        }
+        }                                                                                                                                                                                                 

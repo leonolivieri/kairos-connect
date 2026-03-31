@@ -1,153 +1,158 @@
 <?php
-    namespace src\Controllers;
+namespace src\Controllers;
 
-    use src\Models\MessageRepository;
-    use src\Config\Database;
-    use src\Controllers\ConfigController;
-    use PDO;
+use src\Models\MessageRepository;
+use src\Controllers\ConfigController;
+use src\Services\WhatsAppService;
+use src\Services\IAService;
+use Exception;
+
+/**
+ * =========================================================================
+ * CLASSE: ConnectController
+ * PROJETO: Kairós Connect
+ * STATUS: Versão 7.1 - Arquitetura de Serviços Autônomos e Transbordo Híbrido
+ * DATA/HORA DE ALTERAÇÃO: 30/03/2026 - 13:45
+ * IMPLEMENTAÇÃO:
+ * - Regra Global (IS_IA_ACTIVE)
+ * - Máquina de Estados (kairos_sessoes)
+ * - Retomada por Wake Word e Retomada por Tempo (24h)
+ * =========================================================================
+ */
+class ConnectController {
+    private $mensagemModel;
+    private $config;    
+
+    public function __construct() {
+        $this->mensagemModel = new MessageRepository();
+        $this->config = new ConfigController();
+    }
+
+    public function processarMensagem($whatsappId, $numero, $nome, $texto, $logFile) {
+        
+        // PASSO A: Registro de Entrada
+        try {
+            $this->mensagemModel->salvar($whatsappId, $numero, $nome, $texto, 'ENTRADA');
+
+            // 2. Libera a Meta: Desliga a conexão HTTP mas mantém o script rodando
+            http_response_code(200);
+            echo "OK";
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+            
+        } catch (Exception $e) {
+            $this->logInternal($logFile, "ERRO BANCO (ENTRADA): " . $e->getMessage());
+        }
+        // =========================================================================
+        // MÓDULO DE TRANSBORDO E REGRAS DE ESTADO (HANDOFF)
+        // =========================================================================
+        
+        // REGRA GLOBAL: O motor cognitivo geral da empresa está ligado?
+        $iaGlobalStatus = $this->config->get('IS_IA_ACTIVE');
+        // Se a chave for '0', 'false', ou nula, abortamos o processamento da IA.
+        if ($iaGlobalStatus == '0' || $iaGlobalStatus === 'false' || empty($iaGlobalStatus)) {
+            $this->logInternal($logFile, "REGRA GLOBAL: IA Desativada. Mensagem arquivada para atendimento humano.");
+            return "IA Global Desativada.";
+        }
+
+        // REGRA DE SESSÃO: Qual o status deste cliente específico?
+        $sessao = $this->mensagemModel->getEstadoSessao($numero);
+        $iaRespondeSessao = $sessao['ia_responde'] ?? 1;
+        $dataIntervencao = $sessao['data_intervencao'] ?? null;
+
+        // Se a IA estiver desligada para este cliente (0)
+        if ($iaRespondeSessao == 0) {
+            $reativarIA = false;
+            $motivoReativacao = "";
+
+            // 1. Verificação de Wake Word (Palavra de Despertar)
+            $textoLower = mb_strtolower($texto, 'UTF-8');
+            // Expressões que o cliente pode dizer para pedir a IA de volta
+            if (preg_match('/\b(falar com a ia|voltar para a ia|assistente virtual|olá kairós|kairos)\b/', $textoLower)) {
+                $reativarIA = true;
+                $motivoReativacao = "Wake Word do Cliente";
+            }
+            
+            // Comando oculto para o Operador Humano (Leon) religar a IA rapidamente
+            if (trim($texto) === '/ia_on' || trim($texto) === '#ia') {
+                 $reativarIA = true;
+                 $motivoReativacao = "Comando do Operador";
+            }
+
+            // 2. Verificação de Tempo (Regra das 24 horas)
+            if (!$reativarIA && $dataIntervencao) {
+                try {
+                    $agora = new DateTime();
+                    $dataInterv = new DateTime($dataIntervencao);
+                    $diferencaHoras = ($agora->getTimestamp() - $dataInterv->getTimestamp()) / 3600;
+
+                    if ($diferencaHoras >= 24) {
+                        $reativarIA = true;
+                        $motivoReativacao = "Tempo Expirado (24h)";
+                    }
+                } catch (Exception $e) {
+                    $this->logInternal($logFile, "Erro ao calcular tempo: " . $e->getMessage());
+                }
+            }
+
+            // Ação de Reativação ou Silêncio
+            if ($reativarIA) {
+                // Liga a IA no banco de dados e apaga a data de intervenção
+                $this->mensagemModel->setEstadoSessao($numero, 1);
+                $this->logInternal($logFile, "TRANSBORDO: IA reativada. Motivo: " . $motivoReativacao);
+                
+                // Se foi apenas um comando do operador, não mandamos o "/ia_on" pro Gemini. Abortamos aqui.
+                if ($motivoReativacao === "Comando do Operador") {
+                    return "IA religada silenciosamente.";
+                }
+            } else {
+                // A IA continua calada. A mensagem foi salva no PASSO A. O Maestro encerra o ciclo.
+                $this->logInternal($logFile, "TRANSBORDO: Cliente em atendimento humano. IA em silêncio.");
+                return "Em atendimento humano.";
+            }
+        }
+        // =========================================================================
+
+        // PASSO B: Processamento Cognitivo (Motor de IA)
+        try {
+            $iaService = new IAService();
+            $prompt = $this->config->get('IA_SYSTEM_PROMPT') ?? "Atue como um assistente virtual prestativo e profissional.";
+            
+            // O Maestro apenas pede a música, o IAService é quem toca.
+            $respostaIA = $iaService->gerarResposta($nome, $texto, $prompt);
+            
+            $this->logInternal($logFile, "IA RESPONDEU: " . mb_substr($respostaIA, 0, 50) . "...");
+        } catch (Exception $e) {
+            $this->logInternal($logFile, "FALHA MOTOR COGNITIVO: " . $e->getMessage());
+            return "Desculpe, tive um problema técnico ao processar sua solicitação.";
+        }
+
+        // PASSO C: Despacho (WhatsApp Service)
+        try {
+            // Salvamos a SAÍDA no banco antes do disparo
+            $whatsappIdSaida = 'saida_' . uniqid();
+            $this->mensagemModel->salvar($whatsappIdSaida, $numero, 'IA', $respostaIA, 'SAIDA');
+
+            $this->enviarParaWhatsapp($numero, $respostaIA);
+            $this->logInternal($logFile, "DISPARO WHATSAPP REALIZADO.");
+        } catch (Exception $e) {
+            $this->logInternal($logFile, "FALHA NO DISPARO: " . $e->getMessage());
+        }
+
+        return $respostaIA;
+    }
 
     /**
-     * CLASSE: ConnecttController
-     * PROJETO: Kairós Connect
-     * STATUS: Versão 6.3 - Patch de Memória e Rastreio de Banco de Dados
-     * DATA/HORA DE DEPLOY: 20 de Março de 2026
+     * Encaminha o texto para o serviço de mensageria
      */
-    class ConnectController {
-        private $db;
-        private $mensagemModel;
-        private $config;    
-
-        public function __construct() {
-            $this->db = Database::getInstance();
-            $this->mensagemModel = new MessageRepository();
-            $this->config = new ConfigController();
-        }
-
-        public function processarMensagem($whatsappId, $numero, $nome, $texto, $logFile) {
-            
-            // PASSO A: Tentar salvar a ENTRADA com auditoria de erro rígida
-            try {
-                $salvo = $this->mensagemModel->salvar($whatsappId, $numero, $nome, $texto, 'ENTRADA');
-                if (!$salvo) {
-                    $this->logInternal($logFile, "AVISO DE BANCO: Falha silenciosa ao salvar a ENTRADA. Verifique colunas e tipos.");
-                }
-            } catch (\Exception $e) {
-                $this->logInternal($logFile, "ERRO SQL FATAL (ENTRADA): " . $e->getMessage());
-            }
-            
-            $configs = $this->getConfigs([
-                'IA_API_KEY', 'IA_BASE_URL', 'IA_MODEL', 'META_ACCESS_TOKEN', 
-                'META_PHONE_ID', 'META_BASE_URL', 'IS_IA_ACTIVE' 
-            ]);
-
-            if (($configs['IS_IA_ACTIVE'] ?? '0') !== '1') {
-                $this->logInternal($logFile, "IA DESATIVADA VIA BANCO.");
-                return "Serviço temporariamente indisponível.";
-            }
-            
-            if (empty($configs['IA_API_KEY'])) {
-                $this->logInternal($logFile, "ERRO: IA_API_KEY não configurada.");
-                return "Erro técnico: Configure a Chave de API no painel.";
-            }
-
-            $systemPrompt = $this->buscarPromptAtivo();
-            $modeloAtivo = $configs['IA_MODEL'] ?: 'gemini-2.5-flash';
-            
-            $urlIA = "{$configs['IA_BASE_URL']}/{$modeloAtivo}:generateContent?key={$configs['IA_API_KEY']}";
-
-            $this->logInternal($logFile, "ACORDANDO MOTOR: " . $modeloAtivo);
-
-            $respostaIA = $this->gerarRespostaIA($urlIA, $nome, $texto, $logFile, $systemPrompt);
-
-            // PASSO B: Salvar a SAÍDA (Resposta da IA) no banco de dados
-            try {
-                $idSaida = 'IA_OUT_' . uniqid(); // Gera um ID único provisório para a saída
-                $salvoSaida = $this->mensagemModel->salvar($idSaida, $numero, 'Kairós IA', $respostaIA, 'SAIDA');
-                if (!$salvoSaida) {
-                    $this->logInternal($logFile, "AVISO DE BANCO: Falha silenciosa ao salvar a SAÍDA.");
-                }
-            } catch (\Exception $e) {
-                $this->logInternal($logFile, "ERRO SQL FATAL (SAIDA): " . $e->getMessage());
-            }
-
-            if (!empty($configs['META_ACCESS_TOKEN']) && !empty($configs['META_PHONE_ID'])) {
-                $urlMeta = "{$configs['META_BASE_URL']}/{$configs['META_PHONE_ID']}/messages";
-                $metaResponse = $this->enviarParaWhatsapp($configs['META_ACCESS_TOKEN'], $urlMeta, $numero, $respostaIA);
-                $this->logInternal($logFile, "RAW META RES: " . $metaResponse);
-            }
-
-            return $respostaIA;
-        }
-
-        private function getConfigs($chaves) {
-            $res = [];
-            foreach ($chaves as $chave) { $res[$chave] = $this->config->get($chave); }
-            return $res;
-        }
-
-        private function buscarPromptAtivo() {
-            try {
-                $stmt = $this->db->query("SELECT valor FROM kairos_configuracoes WHERE config_group = 'IA_PROMPTS' AND is_active = 1 LIMIT 1");
-                $res = $stmt->fetch(PDO::FETCH_ASSOC);
-                if ($res) return $res['valor'];
-            } catch (\Exception $e) {}
-            return $this->config->get('IA_SYSTEM_PROMPT') ?: "Aja como assistente executivo.";
-        }
-
-        private function gerarRespostaIA($url, $nome, $texto, $logFile, $systemPrompt) {
-            // PAYLOAD UNIVERSAL: Resolve o Erro 400 fundindo as instruções no conteúdo.
-            $conteudoCombinado = "DIRETRIZ DE SISTEMA (Siga estritamente esta persona):\n" . $systemPrompt . "\n\n---\n\nMENSAGEM DO CLIENTE:\nNome: " . $nome . "\nMensagem: " . $texto;
-
-            $payload = [
-                "contents" => [
-                    [
-                        "role" => "user",
-                        "parts" => [
-                            [
-                                "text" => $conteudoCombinado
-                            ]
-                        ]
-                    ]
-                ]
-            ];
-
-            $ch = \curl_init($url);
-            \curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-            \curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-            \curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            \curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
-            
-            $res = \curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            $this->logInternal($logFile, "HTTP CODE IA: " . $httpCode);
-            
-            $result = json_decode($res, true);
-            $textoIA = $result['candidates'][0]['content']['parts'][0]['text'] ?? null;
-
-            if ($textoIA) {
-                return $textoIA;
-            } else {
-                $msgErro = $result['error']['message'] ?? "Erro interno da API Google.";
-                $this->logInternal($logFile, "ERRO CAPTURADO: " . $msgErro);
-                return "Leon, erro de validação: " . $msgErro;
-            }
-        }
-
-        private function enviarParaWhatsapp($token, $url, $para, $texto) {
-            $payload = ["messaging_product" => "whatsapp", "to" => $para, "type" => "text", "text" => ["body" => $texto]];
-            $ch = curl_init($url);
-            \curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer $token", "Content-Type: application/json"]);
-            \curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-            \curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            \curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            $res = curl_exec($ch);
-            curl_close($ch);
-            return $res;
-        }
-
-        private function logInternal($file, $msg) {
-            file_put_contents($file, "[" . date('Y-m-d H:i:s') . "] " . $msg . PHP_EOL, FILE_APPEND);
-        }
+    private function enviarParaWhatsapp($para, $texto) {
+        $whatsappService = new WhatsAppService();
+        return $whatsappService->enviarTexto($para, $texto);
     }
+
+    private function logInternal($logFile, $msg) {
+        $data = date('Y-m-d H:i:s');
+        file_put_contents($logFile, "[{$data}] {$msg}\n", FILE_APPEND);
+    }
+}

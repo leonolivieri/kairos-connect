@@ -28,21 +28,19 @@
             */
 
             public function get($chave) {
-                // 1. Normalização (Garante que a busca seja sempre em Maiúsculas)
-                
-                    $chave = strtoupper(trim($chave));
+                // 1. Normalização (Garante que a busca seja sempre em Maiúsculas) 
+            
+                $chave = strtoupper(trim($chave));
+                $stmt = $this->db->prepare("SELECT valor, config_group, is_secret FROM kairos_configuracoes WHERE chave = :chave LIMIT 1");
+                $stmt->execute([':chave' => $chave]);
+                $result = $stmt->fetch();
 
-                    $stmt = $this->db->prepare("SELECT valor, config_group FROM kairos_configuracoes WHERE chave = :chave LIMIT 1");
-                    $stmt->execute([':chave' => $chave]);
-                    $result = $stmt->fetch();
+                if (!$result) return null;
 
-                    if (!$result) return null;
-
-                    // 2. Lógica de Decifragem (Baseada nas chaves sensíveis que definimos)
-                    // Se a chave buscada for uma das protegidas, tentamos decifrar o valor.
-                    if (in_array($chave, ['META_ACCESS_TOKEN', 'META_VERIFY_TOKEN', 'IA_API_KEY', 'MASTER_KEY'])) {
-                        return SecurityHelper::decrypt($result['valor']) ?: $result['valor'];
-                }
+                // 2. Lógica de Decifragem (Dinâmica via Banco de Dados)
+                if (isset($result['is_secret']) && $result['is_secret'] == 1) {
+                    return SecurityHelper::decrypt($result['valor']);
+                }                
 
                 return $result['valor'];
             }
@@ -57,24 +55,23 @@
              * @param int $ativo Status de ativação (0 ou 1)
             */
 
-            public function set($chave, $valor, $descricao = '', $categoria = 'Sistema', $grupo = 'Sistema', $ativo = 1) {
-                    // ALTERADO: Adicionada a proteção para o grupo IA_CONFIG [cite: 2026-03-09]
+                public function set($chave, $valor, $descricao = '', $categoria = 'Sistema', $grupo = 'Sistema', $ativo = 1, $is_secret = 0) {
                     $chave = strtoupper(trim($chave));
 
-                    // 2. Trava de Segurança por Chave [cite: 2026-03-10]
-                    if (in_array($chave, ['META_ACCESS_TOKEN', 'META_VERIFY_TOKEN', 'IA_API_KEY', 'MASTER_KEY'])) {
+                    // Lógica de Criptografia (Dinâmica via Parâmetro)
+                    if ((int)$is_secret === 1) {
                         $valor = SecurityHelper::encrypt($valor);
                     }
-
-                    // Mudança sutil: trocamos ":valor" por "VALUES(valor)" no UPDATE
-                    $sql = "INSERT INTO kairos_configuracoes (chave, valor, descricao, categoria, config_group, is_active) 
-                            VALUES (:chave, :valor, :descricao, :categoria, :grupo, :ativo) 
+                    // SQL atualizado para contemplar o is_secret na gravação e atualização
+                    $sql = "INSERT INTO kairos_configuracoes (chave, valor, descricao, categoria, config_group, is_active, is_secret) 
+                            VALUES (:chave, :valor, :descricao, :categoria, :grupo, :ativo, :is_secret) 
                             ON DUPLICATE KEY UPDATE 
                                 valor           = VALUES(valor), 
                                 descricao       = IF(VALUES(descricao) IS NOT NULL AND VALUES(descricao) != '', VALUES(descricao), descricao),
                                 categoria       = VALUES(categoria), 
                                 config_group    = VALUES(config_group), 
-                                is_active       = VALUES(is_active)";
+                                is_active       = VALUES(is_active),
+                                is_secret       = VALUES(is_secret)";
                     
                     $stmt = $this->db->prepare($sql);
                     
@@ -84,7 +81,8 @@
                         ':descricao' => $descricao,
                         ':categoria' => $categoria,
                         ':grupo'     => $grupo,
-                        ':ativo'     => $ativo
+                        ':ativo'     => $ativo,
+                        ':is_secret' => $is_secret
                     ]);
             }
         }
