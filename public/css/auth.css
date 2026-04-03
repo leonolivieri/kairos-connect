@@ -1,0 +1,129 @@
+/**
+     * FICHEIRO: public/login.php
+     * OBJETIVO: Autenticação de Usuários, Validação LGPD e Iniciação de Sessão Kairós.
+     * STATUS: Fase 4 - Proteção de Rota e Segurança Criptográfica.
+     * VERSÃO: 1.2 (Código Limpo - CSS extraído, Rotas Hostinger, strtolower)
+     * DATA DE CRIAÇÃO: 01 de Abril de 2026
+     * ÚLTIMA ALTERAÇÃO: 02 de Abril de 2026
+     * AUTOR: Engenharia Kairós (Leon)
+    */
+    
+:root {
+    --auth-bg-color: #f4f7f6;
+    --auth-card-bg: #ffffff;
+    --auth-text-main: #1e293b;
+    --auth-text-muted: #64748b;
+    --auth-primary: #38bdf8;
+    --auth-primary-hover: #0284c7;
+    --auth-danger: #ef4444;
+    --auth-danger-bg: #fee2e2;
+    --auth-success: #10b981;
+    --auth-success-bg: #d1fae5;
+    --auth-border: #cbd5e1;
+}
+
+body.auth-body { 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    min-height: 100vh; 
+    margin: 0; 
+    background-color: var(--auth-bg-color); 
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    padding: 20px; 
+    box-sizing: border-box;
+}
+
+.auth-card { 
+    background: var(--auth-card-bg); 
+    padding: 2.5rem; 
+    border-radius: 12px; 
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
+    width: 100%; 
+    max-width: 420px; 
+    box-sizing: border-box;
+}
+
+.auth-card h2 { 
+    color: var(--auth-text-main); 
+    text-align: center; 
+    margin-top: 0; 
+    margin-bottom: 5px; 
+    font-size: 1.5rem; 
+    letter-spacing: -0.5px; 
+}
+
+.auth-subtitle {
+    text-align: center;
+    color: var(--auth-text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 25px;
+}
+
+.auth-form-group {
+    margin-bottom: 15px;
+}
+
+.auth-control { 
+    width: 100%; 
+    padding: 12px; 
+    background: #fff; 
+    border: 1px solid var(--auth-border); 
+    color: var(--auth-text-main); 
+    border-radius: 6px; 
+    box-sizing: border-box; 
+    transition: all 0.2s ease; 
+    font-size: 16px; 
+}
+
+.auth-control:focus { 
+    outline: none; 
+    border-color: var(--auth-primary); 
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1); 
+}
+
+.auth-btn-submit { 
+    width: 100%; 
+    padding: 14px; 
+    margin-top: 10px; 
+    font-size: 16px; 
+    background-color: var(--auth-primary); 
+    color: white; 
+    border: none; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    font-weight: 600; 
+    transition: background-color 0.2s; 
+}
+
+.auth-btn-submit:hover { background-color: var(--auth-primary-hover); }
+
+.auth-alert { 
+    text-align: center; 
+    font-size: 14px; 
+    font-weight: 600; 
+    padding: 12px; 
+    border-radius: 6px; 
+    margin-bottom: 20px; 
+}
+
+.alert-danger { color: var(--auth-danger); background: var(--auth-danger-bg); border: 1px solid #fca5a5; }
+.alert-success { color: var(--auth-success); background: var(--auth-success-bg); border: 1px solid #6ee7b7; }
+
+.auth-links-footer {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.auth-links-footer a {
+    color: var(--auth-primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.auth-links-footer a:hover { text-decoration: underline; }
+
+@media (max-width: 380px) {
+    .auth-card { padding: 1.5rem; }
+}

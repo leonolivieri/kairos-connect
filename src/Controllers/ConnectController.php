@@ -5,6 +5,7 @@ use src\Models\MessageRepository;
 use src\Controllers\ConfigController;
 use src\Services\WhatsAppService;
 use src\Services\IAService;
+use DateTime;
 use Exception;
 
 /**
@@ -40,7 +41,7 @@ class ConnectController {
             if (function_exists('fastcgi_finish_request')) {
                 fastcgi_finish_request();
             }
-            
+
         } catch (Exception $e) {
             $this->logInternal($logFile, "ERRO BANCO (ENTRADA): " . $e->getMessage());
         }

@@ -65,4 +65,32 @@
                 
                 return substr(hash('sha256', $key), 0, 32);
             }   
+
+            /**
+             * ============================================================================
+             * CONFORMIDADE LGPD - HASH UNIDIRECIONAL PARA SENHAS
+             * ============================================================================
+            */
+
+            /**
+             * Transforma a senha em um hash Argon2id irreversível.
+             * Utilizado na criação de usuário ou redefinição de senha.
+             * @param string $password Senha em texto plano
+             * @return string Hash seguro
+            */
+            public static function hashPassword(string $password): string {
+                return password_hash($password, PASSWORD_ARGON2ID);
+            }
+
+            /**
+             * Compara a senha digitada com o hash armazenado no banco.
+             * Utilizado exclusivamente na tela de Login.
+             * @param string $password Senha digitada no login
+             * @param string $hash Hash recuperado do banco de dados
+             * @return bool Verdadeiro se a senha bater
+             */
+            public static function verifyPassword(string $password, string $hash): bool {
+                return password_verify($password, $hash);
+            }
+
         }

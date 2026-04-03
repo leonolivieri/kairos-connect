@@ -1,3 +1,11 @@
+# =========================================================================
+# KAIRÓS CONNECT - SEGURANÇA BASE (LITESPEED / APACHE)
+# =========================================================================
+
+# Impede a listagem de diretórios (Segurança)
+Options -Indexes
+
+# BLINDAGEM DE ARQUIVOS CRÍTICOS (Protege o seu ficheiro de senhas da Base de Dados)
 <Files .env>
     Order allow,deny
     Deny from all
